@@ -4,28 +4,28 @@ on:
   workflow_dispatch:  
 
 jobs: 
-  build: 
-    runs-on: ubuntu-latest 
-    steps: 
-      - name: Checkout repository 
-        uses: actions/checkout@v4 
+  #build: 
+  #  runs-on: ubuntu-latest 
+  #  steps: 
+  #    - name: Checkout repository 
+  #      uses: actions/checkout@v4 
 
-      - name: Set up Docker Buildx 
-        uses: docker/setup-buildx-action@v3 
+  #    - name: Set up Docker Buildx 
+  #      uses: docker/setup-buildx-action@v3 
       
-      - name: Build and export to Docker 
-        uses: docker/build-push-action@v5 
-        with: 
-         context: . 
-         push: false 
-         tags: juice-shop-image:latest 
-         outputs: type=docker,dest=/tmp/juice-shop-image.tar
+  #    - name: Build and export to Docker 
+  #      uses: docker/build-push-action@v5 
+  #      with: 
+  #       context: . 
+  #       push: false 
+  #       tags: juice-shop-image:latest 
+  #       outputs: type=docker,dest=/tmp/juice-shop-image.tar
            
-      - name: Upload artifact 
-        uses: actions/upload-artifact@v4 
-        with: 
-          name: juice-shop-image 
-          path: /tmp/juice-shop-image.tar
+  #    - name: Upload artifact 
+  #      uses: actions/upload-artifact@v4 
+  #      with: 
+  #        name: juice-shop-image 
+  #        path: /tmp/juice-shop-image.tar
 
   sast-scan: 
     runs-on: ubuntu-latest
@@ -46,24 +46,31 @@ jobs:
       uses: github/codeql-action/upload-sarif@v3 
       with: 
         sarif_file: "semgrep.sarif" 
+
+  - name: Show SARIF PATHS
+      run: jq 'paths | map(tostring) | join(".")' semgrep.sarif | sort -u
     
     - name: Convert SARIF to CSV
       run: |
-        jq -r '
-          .runs[].results[] as $r |
-          .runs[].tool.driver.rules[]? as $rule |
-          select($rule.id == $r.ruleId) |
-          [   
-            $r.ruleId,
-            $r.level,
-            ($rule.properties["security-severity"] // ""),
-            ([$rule.properties.tags[] | select(startswith("cwe-"))] | join(";")),
-            $r.message.text,
-            $r.locations[0].physicalLocation.artifactLocation.uri,
-            $r.locations[0].physicalLocation.region.startLine
-          ] |
-          @csv
-        ' semgrep.sarif > semgrep.csv
+        (
+          echo "RuleID;Severity;SecuritySeverity;CWE;Message;File;Line"
+          jq -r '
+            .runs[].results[] as $r |
+            .runs[].tool.driver.rules[]? as $rule |
+            select($rule.id == $r.ruleId) |
+            [
+              $r.ruleId,
+              $r.level,
+              ($rule.properties["security-severity"] // ""),
+              ([$rule.properties.tags[]? | select(startswith("cwe-"))] | join(",")),
+              $r.message.text,
+              $r.locations[0].physicalLocation.artifactLocation.uri,
+              $r.locations[0].physicalLocation.region.startLine
+            ]
+            | map(tostring)
+            | join(";")
+          ' semgrep.sarif
+        ) > semgrep.csv
 
     - name: Upload Semgrep CSV artifact
       uses: actions/upload-artifact@v4
@@ -71,39 +78,39 @@ jobs:
         name: semgrep-results-csv
         path: semgrep.csv 
         
-  sca-scan: 
-    runs-on: ubuntu-latest 
-    steps: 
-    - name: Checkout repository 
-      uses: actions/checkout@v4 
-      
-    - name: Run OWASP Dependency-Check 
-      uses: dependency-check/Dependency-Check_Action@main 
-      with: 
-        project: 'juice-shop' 
-        path: '.' 
-        format: 'HTML' 
-        out: 'reports' 
-        args: '--disableYarnAudit --exclude "**/test/files/**"'
-    
-    - name: Upload SCA Report 
-      uses: actions/upload-artifact@v4 
-      with: 
-        name: sca-report
-        path: reports/dependency-check-report.html
+  #sca-scan: 
+  #  runs-on: ubuntu-latest 
+  #  steps: 
+  #  - name: Checkout repository 
+  #    uses: actions/checkout@v4 
+  #    
+  #  - name: Run OWASP Dependency-Check 
+  #    uses: dependency-check/Dependency-Check_Action@main 
+  #    with: 
+  #      project: 'juice-shop' 
+  #      path: '.' 
+  #      format: 'HTML' 
+  #      out: 'reports' 
+  #      args: '--disableYarnAudit --exclude "**/test/files/**"'
+  #  
+  #  - name: Upload SCA Report 
+  #    uses: actions/upload-artifact@v4 
+  #    with: 
+  #      name: sca-report
+  #      path: reports/dependency-check-report.html
 
-  container-scan: 
-    runs-on: ubuntu-latest 
-    needs: build 
-    steps: 
-      - name: Download artifact 
-        uses: actions/download-artifact@v4 
-        with:
-          name: juice-shop-image 
-          path: /tmp
-        
-      - name: Scan container image with Trivy 
-        uses: crazy-max/ghaction-container-scan@v3 
-        with: 
-          tarball: /tmp/juice-shop-image.tar
-          severity_threshold: 'CRITICAL'
+  #container-scan: 
+  #  runs-on: ubuntu-latest 
+  #  needs: build 
+  #  steps: 
+  #    - name: Download artifact 
+  #      uses: actions/download-artifact@v4 
+  #      with:
+  #        name: juice-shop-image 
+  #        path: /tmp
+  #      
+  #    - name: Scan container image with Trivy 
+  #      uses: crazy-max/ghaction-container-scan@v3 
+  #      with: 
+  #        tarball: /tmp/juice-shop-image.tar
+  #        severity_threshold: 'CRITICAL'
