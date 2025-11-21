@@ -47,7 +47,7 @@ jobs:
       with: 
         sarif_file: "semgrep.sarif" 
 
-  - name: Show SARIF PATHS
+    - name: Show SARIF PATHS
       run: jq 'paths | map(tostring) | join(".")' semgrep.sarif | sort -u
     
     - name: Convert SARIF to CSV
