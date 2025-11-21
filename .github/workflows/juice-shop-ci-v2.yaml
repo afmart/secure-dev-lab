@@ -53,24 +53,42 @@ jobs:
     - name: Convert SARIF to CSV
       run: |
         (
-          echo "RuleID;Severity;SecuritySeverity;CWE;Message;File;Line"
+          echo "NotificationIndex;Descriptor;DescriptorId;Level;Message;MessageText;Fingerprints;MatchBasedId;Locations;Location0;PhysicalLocation;ArtifactLocation;Uri;UriBaseId;Region;EndColumn;EndLine;Snippet;SnippetText;StartColumn;StartLine;ResultMessage;ResultMessageText;Properties;RuleId"
           jq -r '
-            .runs[].results[] as $r |
-            .runs[].tool.driver.rules[]? as $rule |
-            select($rule.id == $r.ruleId) |
+            # Iterate over results
+            .runs[0].results[] as $r |
             [
-              $r.ruleId,
-              $r.level,
-              ($rule.properties["security-severity"] // ""),
-              ([$rule.properties.tags[]? | select(startswith("cwe-"))] | join(",")),
-              $r.message.text,
-              $r.locations[0].physicalLocation.artifactLocation.uri,
-              $r.locations[0].physicalLocation.region.startLine
+              "", # NotificationIndex (not in results, leave empty)
+              "", # Descriptor
+              "", # DescriptorId
+              "", # Level
+              "", # Message
+              "", # MessageText
+              ($r.fingerprints // ""),
+              ($r.fingerprints["matchBasedId/v1"] // ""),
+              ($r.locations // ""),
+              ($r.locations[0] // ""),
+              ($r.locations[0].physicalLocation // ""),
+              ($r.locations[0].physicalLocation.artifactLocation // ""),
+              ($r.locations[0].physicalLocation.artifactLocation.uri // ""),
+              ($r.locations[0].physicalLocation.artifactLocation.uriBaseId // ""),
+              ($r.locations[0].physicalLocation.region // ""),
+              ($r.locations[0].physicalLocation.region.endColumn // ""),
+              ($r.locations[0].physicalLocation.region.endLine // ""),
+              ($r.locations[0].physicalLocation.region.snippet // ""),
+              ($r.locations[0].physicalLocation.region.snippet.text // ""),
+              ($r.locations[0].physicalLocation.region.startColumn // ""),
+              ($r.locations[0].physicalLocation.region.startLine // ""),
+              ($r.message // ""),
+              ($r.message.text // ""),
+              ($r.properties // ""),
+              ($r.ruleId // "")
             ]
             | map(tostring)
             | join(";")
           ' semgrep.sarif
         ) > semgrep.csv
+
 
     - name: Upload Semgrep CSV artifact
       uses: actions/upload-artifact@v4
