@@ -1,9 +1,8 @@
-name: CI Pipeline 
+name: Manual CI Pipeline 
 
 on: 
   workflow_dispatch:  
-  push: 
-    branches: [ "master" ]
+
 jobs: 
   build: 
     runs-on: ubuntu-latest 
